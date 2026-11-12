@@ -1,4 +1,4 @@
-# Estimación de parámetros de sistema masa–resorte–amortiguador utilizando Particle Metropolis–Hastings
+# Estimación de parámetros de sistema masa-resorte-amortiguador utilizando Particle Metropolis–Hastings
 
 Este repositorio reproduce en Python el ejemplo numérico del sistema no
 lineal presentado en:
