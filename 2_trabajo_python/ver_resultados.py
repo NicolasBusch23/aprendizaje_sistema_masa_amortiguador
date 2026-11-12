@@ -231,12 +231,14 @@ def figura_posteriores(muestras, verdaderos, quema):
 def figura_trazas(muestras, verdaderos):
     fig, axes = plt.subplots(4, 1, figsize=(11, 9), sharex=True)
     for ax, p in zip(axes, PARAMS):
-        ax.plot(muestras[p], lw=0.5, color="#555555")
+        ax.plot(muestras[p], lw=0.5, color="#555555", label="Cadena MCMC")
         vv = verdaderos.get(p)
         if vv is not None:
-            ax.axhline(vv, color="#d62728", ls="--", lw=1.4)
+            ax.axhline(vv, color="#d62728", ls="--", lw=1.4,
+                       label="Valor verdadero")
         ax.set_ylabel(p)
         ax.grid(alpha=0.3)
+        ax.legend(loc="upper right", fontsize=8)
     axes[-1].set_xlabel("iteracion MCMC")
     fig.tight_layout()
     rutas = guardar_figura(fig, "03_trazas")
