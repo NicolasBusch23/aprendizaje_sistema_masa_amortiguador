@@ -1,0 +1,18 @@
+# Dependencias para ejecutar la inferencia y las figuras del ejemplo Damper
+# (reimplementacion en Python del modelo del articulo de Schon et al., 2018).
+#
+# Instalacion (desde la carpeta Damper):
+#   py -m venv .venv
+#   .\.venv\Scripts\Activate.ps1      # PowerShell  (o .venv\Scripts\activate.bat en cmd)
+#   pip install -r requirements.txt
+#
+# Uso:
+#   python pmh_damper.py --iter 10000 --part 256
+#   python ver_resultados.py
+
+netCDF4==1.7.5.1.post1
+numpy==2.5.0
+scipy==1.18.1
+matplotlib==3.11.0
+pandas==3.0.3
+arviz==0.22.0

@@ -1,0 +1,27 @@
+# Entorno virtual local
+.venv/
+1_original_articulo/1703.02419v2.pdf
+1_original_articulo/1703.02419v2.md
+
+# Cachés y bytecode de Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Cachés de herramientas y notebooks
+.pytest_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Archivos del sistema operativo
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Corridas internas que no deben publicarse
+2_trabajo_python/resultados_python/posterior_diagnostico.nc
+2_trabajo_python/resultados_python/posterior_python.nc
+
+# Archivos temporales
+*.tmp
+*.log
