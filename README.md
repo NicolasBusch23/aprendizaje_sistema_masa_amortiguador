@@ -8,7 +8,6 @@ lineal presentado en:
 > Monte Carlo*, Mechanical Systems and Signal Processing, 104, 866–883.
 
 Enlaces externos:
-
 - [Página del artículo en arXiv](https://arxiv.org/abs/1703.02419)
 - [Artículo completo en PDF](https://arxiv.org/pdf/1703.02419)
 
@@ -38,6 +37,22 @@ algoritmo Particle Metropolis–Hastings (PMH).
 │   └── README.md              # documentación técnica de Python
 └── README.md
 ```
+
+## Procedencia de los datos
+Los datos contenidos en `obs.nc` no corresponden a mediciones experimentales
+reales. Fueron generados mediante una simulación del sistema no lineal
+masa–resorte–amortiguador descrito en la sección 7 del artículo. Los parámetros
+verdaderos utilizados durante la simulación también se encuentran almacenados
+en el archivo para facilitar la comparación con las estimaciones posteriores.
+
+El 23 de octubre de 2017, los autores anunciaron la aceptación del artículo en
+*Mechanical Systems and Signal Processing* y publicaron los enlaces al
+manuscrito, la versión de arXiv y el código necesario para reproducir el ejemplo.
+La entrada correspondiente puede consultarse en la
+[página de resultados de investigación de Thomas B. Schön](https://acortar.link/2p4LCt).
+Dentro de esa entrada aparecen los enlaces identificados como **[pdf]**,
+**[arXiv]** y **[code]**. El archivo `obs.nc` utilizado en este repositorio
+procede del paquete distribuido mediante el enlace **[code]**.
 
 ## Requisitos
 
@@ -243,12 +258,9 @@ Para consultar la ayuda completa:
 - El cuerpo del artículo declara `m=8`, pero el apéndice `Damper.bi` declara
   `m=2`. La implementación Python usa `m=2` porque coincide con el código
   ejecutable y reproduce mejor `obs.nc`.
-- Los ruidos se implementan como `sigma_v=0.01` y `sigma_y=0.1`, de acuerdo con
-  las distribuciones `N(0, 0.01²)` y `N(0, 0.1²)` de la sección 7.
 - Las 10 000 iteraciones MCMC están autocorrelacionadas. No equivalen a 10 000
   muestras independientes. Se deben revisar las trazas y el tamaño efectivo de
   muestra antes de afirmar convergencia.
-- Los datos de `obs.nc` son simulados; no son mediciones experimentales reales.
 
 ## Documentación adicional
 
