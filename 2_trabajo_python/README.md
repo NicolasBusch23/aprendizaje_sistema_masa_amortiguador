@@ -114,7 +114,7 @@ Active primero el entorno creado según el README principal. Después puede eleg
 las iteraciones y las partículas:
 
 ```powershell
-python pmh_damper.py --iter 10000 --part 256 --semilla 2026
+python pmh_damper.py --iter 10000 --part 256 --semilla 1025884781
 ```
 
 Valores disponibles:
@@ -140,15 +140,17 @@ python pmh_damper.py
 python pmh_damper.py `
   --iter 10000 `
   --part 256 `
-  --semilla 2026 `
-  --inicio 0.011413877 0.712997154 2.155382464 0.577213338
+  --semilla 1025884781 `
+  --inicio 0.1 1 3 0.4
 ```
 
-Esta ejecución tardó cerca de 9.09 minutos en Windows 11 con Python 3.14.5 y
-obtuvo una tasa de aceptación de 37.77 %.
+Esta ejecución tardó cerca de 8.35 minutos en Windows 11 con Python 3.14.5 y
+obtuvo una tasa de aceptación de 33.24 %.
 
-El inicio coincide con los valores verdaderos porque se trata de un estudio de
-simulación. Para un uso ordinario, omita `--inicio`.
+El punto inicial `[0.1, 1, 3, 0.4]` se escogió deliberadamente apartado de los
+valores verdaderos (`[0.0114, 0.713, 2.155, 0.577]`) para observar cómo la
+cadena se aleja de esa región y converge hacia el modo posterior. Para un uso
+ordinario, omita `--inicio`.
 
 ## Generar resultados gráficos
 
@@ -207,16 +209,16 @@ Después del burn-in de 2 000 iteraciones:
 
 | Parámetro | Verdadero | Media | Desviación | IC 95 % |
 |---|---:|---:|---:|---:|
-| `f_c` | 0.011414 | 0.011171 | 0.005933 | [0.001707, 0.024360] |
-| `c_0` | 0.712997 | 0.729019 | 0.054535 | [0.633139, 0.847888] |
-| `k` | 2.155382 | 2.041545 | 0.077729 | [1.855606, 2.165631] |
-| `p` | 0.577213 | 0.551284 | 0.020357 | [0.504956, 0.585200] |
+| `f_c` | 0.011414 | 0.012811 | 0.006870 | [0.002162, 0.027222] |
+| `c_0` | 0.712997 | 0.713497 | 0.058694 | [0.601190, 0.827582] |
+| `k` | 2.155382 | 2.112739 | 0.131920 | [1.833432, 2.320786] |
+| `p` | 0.577213 | 0.566176 | 0.030508 | [0.501378, 0.615200] |
 
 ## Interpretación y convergencia
 
 Las iteraciones MCMC son correlacionadas. La última cadena tiene una aceptación
-de 37.77 %, pero sus tamaños efectivos de muestra son bajos, aproximadamente
-entre 15 y 22 según el parámetro. Por ello:
+de 33.24 %, pero sus tamaños efectivos de muestra son bajos, aproximadamente
+entre 2 y 16 según el parámetro. Por ello:
 
 - los histogramas reproducen razonablemente la forma publicada;
 - los resúmenes deben considerarse aproximaciones Monte Carlo;

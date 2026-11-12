@@ -132,7 +132,7 @@ $PARTICULAS = 256
 .\.venv\Scripts\python.exe .\2_trabajo_python\pmh_damper.py `
   --iter $ITERACIONES `
   --part $PARTICULAS `
-  --semilla 2026
+  --semilla 1025884781
 ```
 
 En Linux o macOS:
@@ -144,7 +144,7 @@ PARTICULAS=256
 python 2_trabajo_python/pmh_damper.py \
   --iter "$ITERACIONES" \
   --part "$PARTICULAS" \
-  --semilla 2026
+  --semilla 1025884781
 ```
 
 La salida predeterminada es:
@@ -177,11 +177,11 @@ La última corrida completa utilizó:
 ```text
 Iteraciones:       10 000
 Partículas:        256
-Semilla:           2026
-Punto inicial:     parámetros verdaderos del ejemplo simulado
-Tiempo aproximado: 9.09 minutos
+Semilla:           1025884781
+Punto inicial:     [f_c, c_0, k, p] = [0.1, 1, 3, 0.4]
+Tiempo aproximado: 8.35 minutos
 Entorno probado:   Windows 11, Python 3.14.5
-Aceptación:        37.77 %
+Aceptación:        33.24 %
 ```
 
 Comando equivalente en Windows:
@@ -190,13 +190,19 @@ Comando equivalente en Windows:
 .\.venv\Scripts\python.exe .\2_trabajo_python\pmh_damper.py `
   --iter 10000 `
   --part 256 `
-  --semilla 2026 `
-  --inicio 0.011413877 0.712997154 2.155382464 0.577213338
+  --semilla 1025884781 `
+  --inicio 0.1 1 3 0.4
 ```
 
-El punto inicial verdadero solo se usó porque este es un ejemplo simulado cuyos
-valores se conocen. Para una ejecución ordinaria, omita `--inicio`; el programa
-obtendrá un punto inicial a partir de las prioris.
+El punto inicial se eligió deliberadamente apartado de los parámetros verdaderos
+(`[0.0114, 0.713, 2.155, 0.577]`) para observar el comportamiento de la cadena
+cuando parte de una región alejada del modo posterior. En las trazas
+(`figuras/03_trazas.png`) se aprecia cómo la cadena abandona ese punto inicial y
+se desplaza hacia la zona de mayor densidad posterior durante las primeras
+iteraciones; por eso el burn-in resulta especialmente visible en esta corrida.
+
+Para una ejecución ordinaria puede omitir `--inicio`; el programa obtendrá un
+punto inicial a partir de las prioris.
 
 ## Generar las figuras
 
