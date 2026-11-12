@@ -13,7 +13,9 @@ Enlaces externos:
 
 El repositorio conserva el material original en LibBi y contiene una
 reimplementación en Python del modelo, el filtro de partículas bootstrap y el
-algoritmo Particle Metropolis–Hastings (PMH).
+algoritmo Particle Metropolis–Hastings (PMH). Además de los parámetros
+`theta = (f_c, c_0, k, p)`, se estiman los estados ocultos del sistema: el
+desplazamiento `x¹_t = s(t)` y la velocidad `x²_t = ṡ(t)`.
 
 ## Estructura del repositorio
 
@@ -28,7 +30,7 @@ algoritmo Particle Metropolis–Hastings (PMH).
 │   ├── results/posterior.nc   # salida original sin muestras utilizables
 │   └── README.md              # documentación del material original
 ├── 2_trabajo_python/
-│   ├── pmh_damper.py          # modelo, filtro bootstrap y PMH
+│   ├── pmh_damper.py          # modelo, filtro bootstrap, PMH y estados
 │   ├── ver_resultados.py      # figuras y resumen posterior
 │   ├── requirements.txt       # dependencias de Python
 │   ├── data/obs.nc            # copia de las observaciones
@@ -58,7 +60,7 @@ procede del paquete distribuido mediante el enlace **[code]**.
 
 - Python. La ejecución de referencia se probó con **Python 3.14.5**.
 - Espacio para un entorno virtual y las dependencias científicas.
-- Aproximadamente 10 minutos para la configuración de referencia; el tiempo
+- Aproximadamente 12 minutos para la configuración de referencia; el tiempo
   depende del procesador.
 
 No se necesita LibBi para ejecutar la versión Python.
@@ -132,7 +134,7 @@ $PARTICULAS = 256
 .\.venv\Scripts\python.exe .\2_trabajo_python\pmh_damper.py `
   --iter $ITERACIONES `
   --part $PARTICULAS `
-  --semilla 1025884781
+  --semilla 101112131415
 ```
 
 En Linux o macOS:
@@ -144,7 +146,7 @@ PARTICULAS=256
 python 2_trabajo_python/pmh_damper.py \
   --iter "$ITERACIONES" \
   --part "$PARTICULAS" \
-  --semilla 1025884781
+  --semilla 101112131415
 ```
 
 La salida predeterminada es:
@@ -175,13 +177,14 @@ de este proyecto.
 La última corrida completa utilizó:
 
 ```text
-Iteraciones:       10 000
-Partículas:        256
-Semilla:           1025884781
-Punto inicial:     [f_c, c_0, k, p] = [0.1, 1, 3, 0.4]
-Tiempo aproximado: 8.35 minutos
-Entorno probado:   Windows 11, Python 3.14.5
-Aceptación:        33.24 %
+Iteraciones:            10 000
+Partículas:             256
+Semilla:                101112131415
+Punto inicial:          [f_c, c_0, k, p] = [0.1, 1, 3, 0.4]
+Trayectorias de estado: 1 000 (una cada 10 iteraciones)
+Tiempo aproximado:      11.43 minutos
+Entorno probado:        Windows 11, Python 3.14.5
+Aceptación:             35.04 %
 ```
 
 Comando equivalente en Windows:
@@ -190,9 +193,12 @@ Comando equivalente en Windows:
 .\.venv\Scripts\python.exe .\2_trabajo_python\pmh_damper.py `
   --iter 10000 `
   --part 256 `
-  --semilla 1025884781 `
+  --semilla 101112131415 `
   --inicio 0.1 1 3 0.4
 ```
+
+Guardar las trayectorias de estados añade alrededor de 13 % al tiempo de cada
+filtro de partículas, por eso esta corrida tarda más que las anteriores.
 
 El punto inicial se eligió deliberadamente apartado de los parámetros verdaderos
 (`[0.0114, 0.713, 2.155, 0.577]`) para observar el comportamiento de la cadena
@@ -230,6 +236,8 @@ informes, presentaciones e impresión:
 2_trabajo_python/figuras/02_posteriores.pdf
 2_trabajo_python/figuras/03_trazas.png
 2_trabajo_python/figuras/03_trazas.pdf
+2_trabajo_python/figuras/04_estados.png
+2_trabajo_python/figuras/04_estados.pdf
 2_trabajo_python/figuras/resumen_posterior.csv
 ```
 
@@ -239,9 +247,24 @@ informes, presentaciones e impresión:
 - densidad prior en negro;
 - valor verdadero en rojo.
 
-El script descarta el 20 % inicial para el histograma y el resumen. Esta
-exclusión se denomina *burn-in* o calentamiento. La gráfica de trazas conserva
-todas las iteraciones para que el usuario pueda evaluar visualmente ese periodo.
+`03_trazas.png` muestra la cadena completa de cada parámetro. La leyenda
+distingue la cadena MCMC (gris) del valor verdadero (línea roja punteada).
+
+`04_estados.png` muestra los estados estimados, en la línea de la Figura 5 del
+artículo:
+
+- arriba, el desplazamiento `x¹_t = s(t)` estimado frente a los datos simulados
+  `y_t`;
+- abajo, la velocidad `x²_t = ṡ(t)` estimada, que no se mide directamente.
+
+Cada panel incluye la media posterior y un intervalo de 95 %. Estas trayectorias
+salen de los mismos filtros de partículas que se ejecutan dentro de PMH, como
+indica la sección 5 del artículo.
+
+El script descarta el 20 % inicial para el histograma, el resumen y la figura de
+estados. Esta exclusión se denomina *burn-in* o calentamiento. La gráfica de
+trazas conserva todas las iteraciones para que el usuario pueda evaluar
+visualmente ese periodo.
 
 ## Parámetros opcionales del programa
 
@@ -250,8 +273,13 @@ todas las iteraciones para que el usuario pueda evaluar visualmente ese periodo.
 --part N                     número de partículas del filtro
 --semilla N                  semilla aleatoria
 --inicio FC C0 K P           vector inicial opcional
+--adelgazar-estados N        guardar una trayectoria de estados cada N iteraciones (def. 10)
 --salida RUTA                archivo NetCDF de salida
 ```
+
+Con los valores predeterminados se guardan 1 000 trayectorias de estados
+(iteraciones 0, 10, 20, …, 9 990). Un valor menor aumenta el tamaño del archivo
+de salida.
 
 Para consultar la ayuda completa:
 
