@@ -13,6 +13,7 @@ Salidas (carpeta figuras/):
     01_datos_observados.png / .pdf
     02_posteriores.png / .pdf
     03_trazas.png / .pdf
+    04_estados.png / .pdf   (desplazamiento x^1_t y velocidad x^2_t estimados)
     resumen_posterior.csv
 """
 
@@ -114,8 +115,20 @@ def cargar_posterior():
             p: np.asarray(ds.variables[p][:], dtype=float) for p in PARAMS
         }
 
+        # Trayectorias de estados x^1_t = s(t) y x^2_t = sdot(t), si existen.
+        # Las corridas anteriores a esta version no las guardaban.
+        estados = None
+        if {"x1", "x2", "iteracion_estado"} <= set(ds.variables):
+            estados = {
+                "iteracion": np.asarray(
+                    ds.variables["iteracion_estado"][:], dtype=int
+                ),
+                "x1": np.asarray(ds.variables["x1"][:], dtype=float),
+                "x2": np.asarray(ds.variables["x2"][:], dtype=float),
+            }
+
     print(f"  Posterior leido de: {ruta}")
-    return muestras
+    return muestras, estados
 
 
 def guardar_figura(fig, nombre):
@@ -246,6 +259,69 @@ def figura_trazas(muestras, verdaderos):
     return rutas
 
 
+def figura_estados(tiempo, y, estados, quema):
+    """Estados estimados, en el espiritu de la Figura 5 del articulo.
+
+    Usa las trayectorias x_{0:T} guardadas por PMH despues del burn-in, que
+    aproximan la distribucion de suavizado p(x_{0:T} | y_{1:T}).
+
+    Panel superior: desplazamiento x^1_t = s(t) con los datos simulados y_t.
+    Panel inferior: velocidad x^2_t = sdot(t), que no se observa directamente.
+    En ambos se muestra la media posterior y el intervalo de 95 %.
+    """
+    seleccion = estados["iteracion"] >= quema
+    if not np.any(seleccion):
+        raise ValueError("No hay trayectorias de estados despues de la quema.")
+
+    x1 = estados["x1"][seleccion]
+    x2 = estados["x2"][seleccion]
+    tiempo_segundos = 0.1 * np.arange(x1.shape[1])
+
+    fig, (ax_s, ax_v) = plt.subplots(2, 1, figsize=(11, 7), sharex=True)
+
+    # Desplazamiento x^1_t = s(t) frente a los datos simulados.
+    ax_s.scatter(
+        0.1 * tiempo, y, s=4, color="black", alpha=0.6,
+        label=r"Datos simulados $y_t$", zorder=1,
+    )
+    ax_s.fill_between(
+        tiempo_segundos,
+        np.percentile(x1, 2.5, axis=0),
+        np.percentile(x1, 97.5, axis=0),
+        color="#4C9ED9", alpha=0.35,
+        label=r"Intervalo 95 % de $p(x^1_t \mid y_{1:T})$", zorder=2,
+    )
+    ax_s.plot(
+        tiempo_segundos, x1.mean(axis=0), color="#1F5F99", lw=1.0,
+        label=r"Media posterior de $x^1_t = s(t)$", zorder=3,
+    )
+    ax_s.set_ylabel(r"desplazamiento $x^1_t = s(t)$")
+    ax_s.grid(alpha=0.3)
+    ax_s.legend(loc="upper right", fontsize=8)
+
+    # Velocidad x^2_t = sdot(t): estado no observado.
+    ax_v.fill_between(
+        tiempo_segundos,
+        np.percentile(x2, 2.5, axis=0),
+        np.percentile(x2, 97.5, axis=0),
+        color="#F28E2B", alpha=0.35,
+        label=r"Intervalo 95 % de $p(x^2_t \mid y_{1:T})$",
+    )
+    ax_v.plot(
+        tiempo_segundos, x2.mean(axis=0), color="#B5520B", lw=1.0,
+        label=r"Media posterior de $x^2_t = \dot{s}(t)$",
+    )
+    ax_v.set_ylabel(r"velocidad $x^2_t = \dot{s}(t)$")
+    ax_v.set_xlabel("tiempo (s)")
+    ax_v.grid(alpha=0.3)
+    ax_v.legend(loc="upper right", fontsize=8)
+
+    fig.tight_layout()
+    rutas = guardar_figura(fig, "04_estados")
+    plt.close(fig)
+    return rutas
+
+
 def resumen(muestras, verdaderos, quema):
     filas = []
     for p in PARAMS:
@@ -268,7 +344,7 @@ def resumen(muestras, verdaderos, quema):
 def main():
     print("Leyendo archivos...")
     tiempo, y, verdaderos = cargar_observaciones()
-    muestras = cargar_posterior()
+    muestras, estados = cargar_posterior()
 
     n = len(muestras["f_c"])
     quema = int(n * QUEMA_FRAC)
@@ -291,6 +367,16 @@ def main():
     archivos.extend(figura_datos(tiempo, y))
     archivos.extend(figura_posteriores(muestras, verdaderos, quema))
     archivos.extend(figura_trazas(muestras, verdaderos))
+    if estados is None:
+        print(
+            "  Aviso: el posterior no contiene trayectorias de estados; "
+            "no se genera 04_estados.\n"
+            "  Vuelva a ejecutar pmh_damper.py con la version actual."
+        )
+    else:
+        n_tray = int(np.sum(estados["iteracion"] >= quema))
+        print(f"  Trayectorias de estados despues de la quema: {n_tray}")
+        archivos.extend(figura_estados(tiempo, y, estados, quema))
     df, ruta_csv = resumen(muestras, verdaderos, quema)
     archivos.append(ruta_csv)
 

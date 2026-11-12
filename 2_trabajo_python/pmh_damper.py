@@ -6,7 +6,9 @@ Este archivo implementa:
 * el modelo de estado de las ecuaciones (41)-(42) del articulo;
 * el filtro de particulas bootstrap del Algoritmo 2;
 * particle Metropolis-Hastings (PMH) del Algoritmo 3;
-* la propuesta gaussiana truncada declarada en ``Damper.bi``.
+* la propuesta gaussiana truncada declarada en ``Damper.bi``;
+* la extraccion de trayectorias de estados x_{0:T} dentro de PMH, que
+  aproxima la distribucion de suavizado p(x_{0:T} | y_{1:T}) de la Figura 5.
 
 Referencia:
     Schon, Svensson, Murray y Lindsten (2018), "Probabilistic learning of
@@ -251,12 +253,22 @@ def filtro_particulas(
     y: np.ndarray,
     n_particulas: int,
     rng: np.random.Generator,
-) -> float:
+    guardar_trayectoria: bool = False,
+):
     """Estima log p(y|theta) con el filtro bootstrap del Algoritmo 2.
 
     ``obs.nc`` contiene y_0,...,y_1000. Primero se pondera el estado inicial
     conocido y, desde t=1, se remuestrea, propaga y pondera. Esta es la misma
     recursion del Algoritmo 2 con el indice desplazado para incluir y_0.
+
+    Si ``guardar_trayectoria`` es verdadero, ademas de la log-verosimilitud se
+    devuelve una trayectoria completa de estados ``(x^1_{0:T}, x^2_{0:T})``,
+    donde x^1_t = s(t) es el desplazamiento y x^2_t = sdot(t) la velocidad,
+    con la notacion de la ecuacion (42). La trayectoria se obtiene eligiendo
+    una particula final segun sus pesos y siguiendo hacia atras sus indices
+    ancestrales a_t. Es la salida de estados que acompaña a PMH (seccion 5 del
+    articulo) y permite aproximar la distribucion de suavizado
+    p(x_{0:T} | y_{1:T}) de la Figura 5.
     """
     if n_particulas < 2:
         raise ValueError("El filtro requiere al menos dos particulas.")
@@ -266,6 +278,14 @@ def filtro_particulas(
     velocidad = np.full(n_particulas, VELOCIDAD_INICIAL)
     pesos = np.full(n_particulas, 1.0 / n_particulas)
     log_verosimilitud = 0.0
+
+    if guardar_trayectoria:
+        # Historial de particulas y de indices ancestrales a_t (Algoritmo 2).
+        historial_s = np.empty((y.size, n_particulas))
+        historial_velocidad = np.empty((y.size, n_particulas))
+        historial_ancestros = np.zeros((y.size, n_particulas), dtype=np.intp)
+        historial_s[0] = s
+        historial_velocidad[0] = velocidad
 
     # Observacion inicial. Todos los estados son iguales, pero se incluye su
     # contribucion para reportar la verosimilitud completa del archivo.
@@ -292,6 +312,11 @@ def filtro_particulas(
             + rng.normal(0.0, SIGMA_PROCESO, n_particulas)
         )
 
+        if guardar_trayectoria:
+            historial_s[t] = s
+            historial_velocidad[t] = velocidad
+            historial_ancestros[t] = ancestros
+
         # Algoritmo 2, ponderacion. Si falta y_t, la distribucion predictiva
         # pasa sin actualizacion y los pesos quedan uniformes.
         if np.isfinite(y[t]):
@@ -300,7 +325,20 @@ def filtro_particulas(
         else:
             pesos.fill(1.0 / n_particulas)
 
-    return float(log_verosimilitud)
+    if not guardar_trayectoria:
+        return float(log_verosimilitud)
+
+    # Se elige una particula al tiempo final con probabilidad igual a su peso
+    # normalizado y se reconstruye su linaje hacia atras con a_t.
+    trayectoria = np.empty((2, y.size))
+    indice = int(rng.choice(n_particulas, p=pesos))
+    for t in range(y.size - 1, -1, -1):
+        trayectoria[0, t] = historial_s[t, indice]
+        trayectoria[1, t] = historial_velocidad[t, indice]
+        if t > 0:
+            indice = int(historial_ancestros[t, indice])
+
+    return float(log_verosimilitud), trayectoria
 
 
 # ---------------------------------------------------------------------------
@@ -312,11 +350,21 @@ def pmh(
     n_particulas: int,
     semilla: int = 0,
     theta_inicial: np.ndarray | None = None,
+    adelgazar_estados: int = 10,
     verbose: bool = True,
 ):
-    """Genera una cadena de vectores theta mediante PMH."""
+    """Genera una cadena de vectores theta y trayectorias de estados con PMH.
+
+    Cada iteracion conserva, junto con theta y la verosimilitud estimada, una
+    trayectoria x_{0:T} extraida del mismo filtro de particulas. Si la
+    propuesta se acepta, se aceptan conjuntamente theta' y su trayectoria; si
+    se rechaza, se repite la trayectoria anterior. Las trayectorias se guardan
+    cada ``adelgazar_estados`` iteraciones para limitar el tamaño del archivo.
+    """
     if n_iteraciones < 2:
         raise ValueError("PMH requiere al menos dos iteraciones.")
+    if adelgazar_estados < 1:
+        raise ValueError("adelgazar_estados debe ser al menos 1.")
 
     rng = np.random.default_rng(semilla)
     theta = (
@@ -331,16 +379,25 @@ def pmh(
         raise ValueError("theta_inicial esta fuera de los limites de propuesta.")
 
     log_prior = log_priori(theta)
-    log_lik = filtro_particulas(theta, y, n_particulas, rng)
+    log_lik, trayectoria = filtro_particulas(
+        theta, y, n_particulas, rng, guardar_trayectoria=True
+    )
 
     cadena = np.empty((n_iteraciones, 4))
     log_prioris = np.empty(n_iteraciones)
     log_verosimilitudes = np.empty(n_iteraciones)
     aceptada = np.zeros(n_iteraciones, dtype=np.int8)
 
+    # Trayectorias guardadas: iteraciones 0, k, 2k, ... con k=adelgazar_estados.
+    iteraciones_estado = np.arange(0, n_iteraciones, adelgazar_estados)
+    estados = np.empty((iteraciones_estado.size, 2, y.size), dtype=np.float32)
+    siguiente_estado = 0
+
     cadena[0] = theta
     log_prioris[0] = log_prior
     log_verosimilitudes[0] = log_lik
+    estados[siguiente_estado] = trayectoria
+    siguiente_estado += 1
 
     inicio = perf_counter()
     intervalo = max(1, n_iteraciones // 20)
@@ -348,8 +405,8 @@ def pmh(
     for i in range(1, n_iteraciones):
         propuesta, log_cociente_q = proponer_theta(theta, rng)
         log_prior_propuesta = log_priori(propuesta)
-        log_lik_propuesta = filtro_particulas(
-            propuesta, y, n_particulas, rng
+        log_lik_propuesta, trayectoria_propuesta = filtro_particulas(
+            propuesta, y, n_particulas, rng, guardar_trayectoria=True
         )
 
         # Ecuacion (33): verosimilitud estimada, prior y cociente de propuestas.
@@ -365,13 +422,18 @@ def pmh(
             theta = propuesta
             log_prior = log_prior_propuesta
             log_lik = log_lik_propuesta
+            trayectoria = trayectoria_propuesta
             aceptada[i] = 1
 
-        # En un rechazo se conservan conjuntamente theta y la estimacion de
-        # verosimilitud anterior, como exige el algoritmo pseudo-marginal.
+        # En un rechazo se conservan conjuntamente theta, la estimacion de
+        # verosimilitud y la trayectoria anteriores, como exige el algoritmo
+        # pseudo-marginal.
         cadena[i] = theta
         log_prioris[i] = log_prior
         log_verosimilitudes[i] = log_lik
+        if i % adelgazar_estados == 0:
+            estados[siguiente_estado] = trayectoria
+            siguiente_estado += 1
 
         if verbose and (i % intervalo == 0 or i == n_iteraciones - 1):
             tasa = aceptada[1:i + 1].mean()
@@ -384,7 +446,18 @@ def pmh(
             )
 
     tasa_aceptacion = float(aceptada[1:].mean())
-    return cadena, log_verosimilitudes, log_prioris, aceptada, tasa_aceptacion
+    minutos_totales = (perf_counter() - inicio) / 60.0
+    return {
+        "cadena": cadena,
+        "log_verosimilitudes": log_verosimilitudes,
+        "log_prioris": log_prioris,
+        "aceptada": aceptada,
+        "tasa_aceptacion": tasa_aceptacion,
+        "estados": estados,
+        "iteraciones_estado": iteraciones_estado,
+        "adelgazar_estados": adelgazar_estados,
+        "minutos": minutos_totales,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -392,37 +465,74 @@ def pmh(
 # ---------------------------------------------------------------------------
 def guardar_posterior(
     ruta: str,
-    cadena: np.ndarray,
-    log_verosimilitudes: np.ndarray,
-    log_prioris: np.ndarray,
-    aceptada: np.ndarray,
+    resultado: dict,
     n_particulas: int,
     semilla: int,
-    tasa_aceptacion: float,
+    theta_inicial,
 ) -> str:
-    """Guarda muestras y metadatos suficientes para auditar la corrida."""
+    """Guarda muestras, trayectorias de estados y metadatos de la corrida."""
     carpeta = os.path.dirname(ruta)
     if carpeta:
         os.makedirs(carpeta, exist_ok=True)
 
+    cadena = resultado["cadena"]
+    estados = resultado["estados"]
+
     with Dataset(ruta, "w", format="NETCDF4") as ds:
+        # Cadena de parametros theta = (f_c, c_0, k, p).
         ds.createDimension("muestra", cadena.shape[0])
         for j, nombre in enumerate(PARAMETROS):
             variable = ds.createVariable(nombre, "f8", ("muestra",))
             variable[:] = cadena[:, j]
 
         ds.createVariable("loglikelihood", "f8", ("muestra",))[:] = (
-            log_verosimilitudes
+            resultado["log_verosimilitudes"]
         )
-        ds.createVariable("logprior", "f8", ("muestra",))[:] = log_prioris
-        ds.createVariable("aceptada", "i1", ("muestra",))[:] = aceptada
+        ds.createVariable("logprior", "f8", ("muestra",))[:] = (
+            resultado["log_prioris"]
+        )
+        ds.createVariable("aceptada", "i1", ("muestra",))[:] = (
+            resultado["aceptada"]
+        )
+
+        # Trayectorias de estados, notacion de la ecuacion (42):
+        # x1 = x^1_t = s(t) (desplazamiento), x2 = x^2_t = sdot(t) (velocidad).
+        ds.createDimension("muestra_estado", estados.shape[0])
+        ds.createDimension("tiempo", estados.shape[2])
+
+        iteracion = ds.createVariable("iteracion_estado", "i4", ("muestra_estado",))
+        iteracion[:] = resultado["iteraciones_estado"]
+        iteracion.long_name = "iteracion PMH de la que procede cada trayectoria"
+
+        indice = ds.createVariable("tiempo", "i4", ("tiempo",))
+        indice[:] = np.arange(estados.shape[2])
+        indice.long_name = "indice temporal t; tiempo fisico = t * T_s"
+
+        x1 = ds.createVariable(
+            "x1", "f4", ("muestra_estado", "tiempo"), zlib=True, complevel=4
+        )
+        x1[:] = estados[:, 0, :]
+        x1.long_name = "x^1_t = s(t), desplazamiento"
+
+        x2 = ds.createVariable(
+            "x2", "f4", ("muestra_estado", "tiempo"), zlib=True, complevel=4
+        )
+        x2[:] = estados[:, 1, :]
+        x2.long_name = "x^2_t = sdot(t), velocidad"
 
         ds.metodo = "Particle Metropolis-Hastings; Algoritmos 2 y 3"
         ds.modelo = "Damper.bi; masa=2; sigma_v=0.01; sigma_y=0.1"
         ds.n_particulas = n_particulas
         ds.n_iteraciones = cadena.shape[0]
-        ds.semilla = semilla
-        ds.tasa_aceptacion = tasa_aceptacion
+        # int64 explicito: la semilla puede superar el rango de 32 bits.
+        ds.semilla = np.int64(semilla)
+        ds.tasa_aceptacion = resultado["tasa_aceptacion"]
+        ds.minutos_ejecucion = resultado["minutos"]
+        ds.adelgazar_estados = int(resultado["adelgazar_estados"])
+        ds.theta_inicial = (
+            "muestreado de las prioris" if theta_inicial is None
+            else ",".join(f"{v:g}" for v in theta_inicial)
+        )
         ds.orden_parametros = ",".join(PARAMETROS)
 
     return ruta
@@ -465,6 +575,10 @@ def main():
         help="theta inicial opcional, en el orden f_c c_0 k p",
     )
     parser.add_argument(
+        "--adelgazar-estados", type=int, default=10,
+        help="guardar la trayectoria de estados cada N iteraciones (def. 10)",
+    )
+    parser.add_argument(
         "--salida",
         default=os.path.join(CARPETA_SALIDA, "posterior_python_corregido.nc"),
         help="archivo NetCDF de salida",
@@ -486,22 +600,24 @@ def main():
         n_particulas=args.part,
         semilla=args.semilla,
         theta_inicial=args.inicio,
+        adelgazar_estados=args.adelgazar_estados,
     )
-    cadena, log_lik, log_prioris, aceptada, tasa = resultado
 
     ruta = guardar_posterior(
         ruta=args.salida,
-        cadena=cadena,
-        log_verosimilitudes=log_lik,
-        log_prioris=log_prioris,
-        aceptada=aceptada,
+        resultado=resultado,
         n_particulas=args.part,
         semilla=args.semilla,
-        tasa_aceptacion=tasa,
+        theta_inicial=args.inicio,
     )
 
-    print(f"\nTasa de aceptacion final: {tasa:.2%}")
-    imprimir_resumen(cadena, verdaderos)
+    print(f"\nTasa de aceptacion final: {resultado['tasa_aceptacion']:.2%}")
+    print(f"Tiempo de ejecucion: {resultado['minutos']:.2f} minutos")
+    print(
+        f"Trayectorias de estados guardadas: {resultado['estados'].shape[0]} "
+        f"(una cada {args.adelgazar_estados} iteraciones)"
+    )
+    imprimir_resumen(resultado["cadena"], verdaderos)
     print(f"\nPosterior guardado en: {ruta}")
 
 
