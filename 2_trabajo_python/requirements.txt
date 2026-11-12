@@ -6,7 +6,7 @@
 #   .\.venv\Scripts\Activate.ps1      # PowerShell  (o .venv\Scripts\activate.bat en cmd)
 #   pip install -r requirements.txt
 #
-# Uso:
+# Usar:
 #   python pmh_damper.py --iter 10000 --part 256
 #   python ver_resultados.py
 #
@@ -33,9 +33,3 @@ matplotlib==3.11.0
 
 # Organiza las muestras en tablas y escribe resumen_posterior.csv.
 pandas==3.0.3
-
-# --- No usada por los scripts actuales -------------------------------------------
-
-# No se importa en ningun script (el ESS y los resumenes se calculan con codigo propio).
-# Es opcional; se puede eliminar sin afectar la ejecucion.
-arviz==0.22.0
