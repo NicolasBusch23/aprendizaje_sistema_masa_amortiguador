@@ -253,7 +253,7 @@ Para consultar la ayuda completa:
 .\.venv\Scripts\python.exe .\2_trabajo_python\pmh_damper.py --help
 ```
 
-## Observaciones científicas importantes
+## Observaciones importantes
 
 - El cuerpo del artículo declara `m=8`, pero el apéndice `Damper.bi` declara
   `m=2`. La implementación Python usa `m=2` porque coincide con el código
