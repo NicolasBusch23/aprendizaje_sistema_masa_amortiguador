@@ -1,6 +1,6 @@
-# Reproducción del ejemplo Damper con Particle Metropolis–Hastings
+# Estimación de parámetros de sistema masa–resorte–amortiguador utilizando Particle Metropolis–Hastings
 
-Este repositorio reproduce en Python el ejemplo numérico del amortiguador no
+Este repositorio reproduce en Python el ejemplo numérico del sistema no
 lineal presentado en:
 
 > T. B. Schön, A. Svensson, L. Murray y F. Lindsten (2018),
